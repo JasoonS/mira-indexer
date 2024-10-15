@@ -52,13 +52,9 @@ type SwapHourly {
     asset_1_out: BigInt!
 }
 
-type DeDuplicator {
-  id: ID!
-  additionalDuplications: Int!
-}
-
 type RawCreatePoolEvent {
   id: ID!
+  additionalDuplications: Int!
   pool_id: String!
   decimals_0: Int!
   decimals_1: Int!
@@ -70,6 +66,7 @@ type RawCreatePoolEvent {
 
 type RawMintEvent {
   id: ID!
+  additionalDuplications: Int!
   pool_id: String!
   recipient: String!
   liquidity: String!
@@ -83,6 +80,7 @@ type RawMintEvent {
 
 type RawBurnEvent {
   id: ID!
+  additionalDuplications: Int!
   pool_id: String!
   recipient: String!
   liquidity: String!
@@ -96,6 +94,7 @@ type RawBurnEvent {
 
 type RawSwapEvent { 
   id: ID!
+  additionalDuplications: Int!
   pool_id: String!
   recipient: String!
   asset_0_in: BigInt!
