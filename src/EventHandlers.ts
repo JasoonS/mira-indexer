@@ -65,23 +65,33 @@ async function upsertTransaction(context: Context, transaction: Transaction) {
     }
 }
 
-const shouldReturnEarlyDueToDuplicate = async (duplicateId: string, context: Context) => {
-    const deduplicator = await context.DeDuplicator.get(duplicateId);
-    if (deduplicator === undefined) {
-        context.DeDuplicator.set({ id: duplicateId, additionalDuplications: 0 });
-        return false;
+type DeUplicatable = {
+    id: string;
+    additionalDuplications: number;
+}
+
+const shouldReturnEarlyDueToDuplicate = async (
+    rawLog: DeUplicatable,
+    getter: (id: string) => Promise<DeUplicatable | undefined>,
+    setter: (rawLog: any) => void
+) => {
+    const oldDeduplicator = await getter(rawLog.id);
+    const isDuplicate = oldDeduplicator !== undefined
+    if (isDuplicate) {
+        setter({ ...rawLog, additionalDuplications: oldDeduplicator.additionalDuplications + 1 });
     } else {
-        // Return Early
-        context.DeDuplicator.set({ ...deduplicator, additionalDuplications: deduplicator.additionalDuplications + 1 });
-        return true;
+        setter({ ...rawLog, additionalDuplications: 0 });
     }
+    return isDuplicate;
 }
 
 Mira.CreatePoolEvent.handler(async ({ event, context }) => {
     // Save a raw event
+    context.log.info(`Handling CreatePoolEvent for pool ID: ${poolIdToStr(event.params.pool_id)}`);
     const id = `${event.logIndex}_${event.transaction.id}_${event.block.height}`
     const rawEvent = {
         id: id,
+        additionalDuplications: 0,
         pool_id: poolIdToStr(event.params.pool_id),
         decimals_0: event.params.decimals_0,
         decimals_1: event.params.decimals_1,
@@ -92,9 +102,8 @@ Mira.CreatePoolEvent.handler(async ({ event, context }) => {
     };
     context.RawCreatePoolEvent.set(rawEvent);
 
-    context.log.info(`Handling CreatePoolEvent for pool ID: ${poolIdToStr(event.params.pool_id)}`);
 
-    if (await shouldReturnEarlyDueToDuplicate(id, context)) {
+    if (await shouldReturnEarlyDueToDuplicate(rawEvent, context.RawCreatePoolEvent.get, context.RawCreatePoolEvent.set)) {
         context.log.error(`Return Early due to duplicate in CreatePoolEvent - tx: ${event.transaction.id}`);
         return;
     }
@@ -115,9 +124,11 @@ Mira.CreatePoolEvent.handler(async ({ event, context }) => {
 
 Mira.MintEvent.handler(async ({ event, context }) => {
     // Save a raw event
-    const id = `${event.logIndex}_${event.transaction.id}_${event.block.height}`
+    context.log.info(`Handling MintEvent for transaction ID: ${event.transaction.id}`);
+    const id = `${event.logIndex}_${event.transaction.id}_${event.block.height}`;
     const rawEvent = {
         id: id,
+        additionalDuplications: 0,
         pool_id: poolIdToStr(event.params.pool_id),
         recipient: identityToStr(event.params.recipient)[0],
         liquidity: event.params.liquidity.id.bits,
@@ -130,9 +141,7 @@ Mira.MintEvent.handler(async ({ event, context }) => {
     };
     context.RawMintEvent.set(rawEvent);
 
-    context.log.info(`Handling MintEvent for transaction ID: ${event.transaction.id}`);
-
-    if (await shouldReturnEarlyDueToDuplicate(id, context)) {
+    if (await shouldReturnEarlyDueToDuplicate(rawEvent, context.RawMintEvent.get, context.RawMintEvent.set)) {
         context.log.error(`Return Early due to duplicate in MintEvent - tx: ${event.transaction.id}`);
         return;
     }
@@ -172,9 +181,11 @@ Mira.MintEvent.handler(async ({ event, context }) => {
 
 Mira.BurnEvent.handler(async ({ event, context }) => {
     // Save a raw event
-    const id = `${event.logIndex}_${event.transaction.id}_${event.block.height}`
+    context.log.info(`Handling BurnEvent for transaction ID: ${event.transaction.id}`);
+    const id = `${event.logIndex}_${event.transaction.id}_${event.block.height}`;
     const rawEvent = {
         id: id,
+        additionalDuplications: 0,
         pool_id: poolIdToStr(event.params.pool_id),
         recipient: identityToStr(event.params.recipient)[0],
         liquidity: event.params.liquidity.id.bits,
@@ -187,9 +198,7 @@ Mira.BurnEvent.handler(async ({ event, context }) => {
     };
     context.RawBurnEvent.set(rawEvent);
 
-    context.log.info(`Handling BurnEvent for transaction ID: ${event.transaction.id}`);
-
-    if (await shouldReturnEarlyDueToDuplicate(id, context)) {
+    if (await shouldReturnEarlyDueToDuplicate(rawEvent, context.RawBurnEvent.get, context.RawBurnEvent.set)) {
         context.log.error(`Return Early due to duplicate in BurnEvent - tx: ${event.transaction.id}`);
         return;
     }
@@ -228,9 +237,12 @@ Mira.BurnEvent.handler(async ({ event, context }) => {
 });
 
 Mira.SwapEvent.handler(async ({ event, context }) => {
-    const id = `${event.logIndex}_${event.transaction.id}_${event.block.height}`
+    // Save a raw event
+    context.log.info(`Handling SwapEvent for transaction ID: ${event.transaction.id}`);
+    const id = `${event.logIndex}_${event.transaction.id}_${event.block.height}`;
     const rawEvent = {
         id: id,
+        additionalDuplications: 0,
         pool_id: poolIdToStr(event.params.pool_id),
         recipient: identityToStr(event.params.recipient)[0],
         asset_0_in: event.params.asset_0_in,
@@ -244,9 +256,7 @@ Mira.SwapEvent.handler(async ({ event, context }) => {
     };
     context.RawSwapEvent.set(rawEvent);
 
-    context.log.info(`Handling SwapEvent for transaction ID: ${event.transaction.id}`);
-
-    if (await shouldReturnEarlyDueToDuplicate(id, context)) {
+    if (await shouldReturnEarlyDueToDuplicate(rawEvent, context.RawSwapEvent.get, context.RawSwapEvent.set)) {
         context.log.error(`Return Early due to duplicate in SwapEvent - tx: ${event.transaction.id}`);
         return;
     }
